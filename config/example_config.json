@@ -1,0 +1,41 @@
+{
+  "api_keys": {
+    "polygon_io": {
+      "api_key": "your_polygon_api_key_here",
+      "tier": "starter",
+      "note": "Get your API key from https://polygon.io/pricing"
+    },
+    "alpha_vantage": {
+      "api_key": "your_alpha_vantage_key_here",
+      "note": "Get your free API key from https://www.alphavantage.co/support/#api-key"
+    }
+  },
+  "settings": {
+    "cache_enabled": true,
+    "cache_max_size_mb": 100,
+    "risk_free_rate": 0.05,
+    "default_data_period": "1y",
+    "auto_remove_insufficient_data": true,
+    "cpu_cores": 4,
+    "enable_synthetic_data": true
+  },
+  "gui_settings": {
+    "theme": "default",
+    "window_size": "1200x800",
+    "auto_save": true,
+    "show_debug_info": false
+  },
+  "portfolio_defaults": {
+    "initial_investment": 100000,
+    "rebalance_frequency": "monthly",
+    "rebalance_threshold": 0.05,
+    "min_weight": 0.02,
+    "max_weight": 0.15,
+    "max_holdings": 20
+  },
+  "monte_carlo_defaults": {
+    "num_simulations": 1000,
+    "time_horizon_days": 252,
+    "confidence_levels": [0.95, 0.99]
+  }
+}

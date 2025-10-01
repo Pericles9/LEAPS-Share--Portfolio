@@ -1,0 +1,124 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Cache directories
+cache/
+yahoo_cache/
+__pycache__/
+
+# Data and temporary files
+temp/
+*.tmp
+*.log
+*.db
+*.sqlite3
+
+# API Keys and Sensitive Data
+config/secrets.json
+config/api_keys.json
+*.key
+.env.local
+.env.production
+
+# Generated/Output files
+data_exports/
+reports/
+visualizations/
+analyses/
+archives/
+portfolios/
+
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test files and debug scripts
+test_*.py
+debug_*.py
+*_test.py
+*_debug.py
+demo_*.py
+simple_*.py
+direct_*.py
+
+# Temporary documentation files
+CACHING_*.md
+COMPREHENSIVE_*.md
+IMPLEMENTATION_*.md
+PORTFOLIO_*.md
+PROGRESS_*.md
+SYSTEM_*.md
+WIZARD_*.md
+OPTIONS_*.md
+FILE_*.md
+
+# Specific files to exclude
+lkadsjfg
+launch_gui.bat
+launch_gui.ps1
+file_dashboard.py
+file_manager_cli.py
+file_metadata.json
+options_demo.py
+options_system_status.py
+setup_polygon.py
+portfolio_gui_config.json
+
+# Keep examples but exclude specific test files
+examples/*/cache/
+examples/*/temp/
+examples/*/__pycache__/
+
+# Jupyter Notebooks checkpoints
+.ipynb_checkpoints/
+
+# Windows
+*.exe
+*.msi
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.nfs*

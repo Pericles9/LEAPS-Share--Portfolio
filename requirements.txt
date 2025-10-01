@@ -1,0 +1,36 @@
+# Core Scientific Computing
+numpy>=1.24.0
+pandas>=1.5.0
+scipy>=1.10.0
+matplotlib>=3.6.0
+
+# Data Sources and APIs
+requests>=2.28.0
+beautifulsoup4>=4.11.0
+lxml>=4.9.0
+tvDatafeed>=2.0.0
+yfinance>=0.2.12
+
+# Financial Analysis
+quantlib-python>=1.29
+TA-Lib>=0.4.25
+
+# GUI and Visualization
+tkinter
+Pillow>=10.0.0
+
+# Utilities
+python-dateutil>=2.8.0
+pytz>=2022.1
+tqdm>=4.64.0
+
+# Optional but recommended for performance
+numba>=0.56.0
+joblib>=1.2.0
+
+# Development and Testing (optional)
+pytest>=7.2.0
+pytest-cov>=4.0.0
+
+# Configuration Management
+python-dotenv>=1.0.0
