@@ -34,6 +34,81 @@ from src.utils.file_manager import PortfolioFileManager
 from src.utils.helpers import format_percentage, format_currency
 
 
+class ScrollableFrame(ttk.Frame):
+    """A scrollable frame widget that can contain other widgets."""
+    
+    def __init__(self, parent, **kwargs):
+        super().__init__(parent, **kwargs)
+        
+        # Create canvas and scrollbar
+        self.canvas = tk.Canvas(self, highlightthickness=0)
+        self.scrollbar_v = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.scrollbar_h = ttk.Scrollbar(self, orient="horizontal", command=self.canvas.xview)
+        
+        # Create the scrollable frame
+        self.scrollable_frame = ttk.Frame(self.canvas)
+        
+        # Configure scrollbars
+        self.canvas.configure(
+            yscrollcommand=self.scrollbar_v.set,
+            xscrollcommand=self.scrollbar_h.set
+        )
+        
+        # Pack scrollbars and canvas
+        self.scrollbar_v.pack(side="right", fill="y")
+        self.scrollbar_h.pack(side="bottom", fill="x")
+        self.canvas.pack(side="left", fill="both", expand=True)
+        
+        # Create window in canvas
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        
+        # Bind events
+        self.scrollable_frame.bind("<Configure>", self._on_frame_configure)
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        
+        # Bind mousewheel to canvas when mouse enters
+        self.canvas.bind("<Enter>", self._bind_mousewheel)
+        self.canvas.bind("<Leave>", self._unbind_mousewheel)
+    
+    def _on_frame_configure(self, event):
+        """Update scroll region when frame size changes."""
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+        # Update canvas window width to match frame if smaller
+        canvas_width = self.canvas.winfo_width()
+        frame_width = self.scrollable_frame.winfo_reqwidth()
+        if canvas_width > frame_width:
+            self.canvas.itemconfig(self.canvas_window, width=canvas_width)
+    
+    def _on_canvas_configure(self, event):
+        """Update frame width when canvas size changes."""
+        canvas_width = event.width
+        frame_width = self.scrollable_frame.winfo_reqwidth()
+        if canvas_width > frame_width:
+            self.canvas.itemconfig(self.canvas_window, width=canvas_width)
+    
+    def _on_mousewheel(self, event):
+        """Handle mouse wheel scrolling."""
+        if self.canvas.winfo_containing(event.x_root, event.y_root) == self.canvas:
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    
+    def _bind_mousewheel(self, event):
+        """Bind mousewheel when entering canvas."""
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+    
+    def _unbind_mousewheel(self, event):
+        """Unbind mousewheel when leaving canvas."""
+        self.canvas.unbind_all("<MouseWheel>")
+    
+    def scroll_to_top(self):
+        """Scroll to the top of the frame."""
+        self.canvas.yview_moveto(0)
+    
+    def scroll_to_bottom(self):
+        """Scroll to the bottom of the frame."""
+        self.canvas.yview_moveto(1)
+
+
 def create_slider_with_entry(parent, from_, to, variable, label_text, row, column=0, 
                             resolution=1, orient='horizontal', width=200, pady=5):
     """
@@ -349,6 +424,44 @@ class PortfolioGUI:
         ttk.Button(buttons_frame, text="📊 Analyze ETFs", 
                   command=self.analyze_etfs).pack(side=tk.LEFT, padx=5)
         
+        # Data Source Status Panel
+        data_source_frame = ttk.LabelFrame(etf_selection_frame, text="🔍 Data Source Status", padding=10)
+        data_source_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        # Create data source indicators (ordered by priority)
+        self.data_source_status = {}
+        status_indicators = [
+            ('️ Web Scraper', 'PRIMARY: Live data from etf.com (your XPaths)', '#3498db'),
+
+            ('📊 yfinance', 'Free API data', '#f39c12'),
+            ('⚠️ Hard-coded', 'Synthetic/manual data (29 ETFs)', '#e74c3c')
+        ]
+        
+        for i, (icon_name, description, color) in enumerate(status_indicators):
+            row_frame = ttk.Frame(data_source_frame)
+            row_frame.pack(fill=tk.X, pady=1)
+            
+            # Status indicator (will be updated dynamically)
+            status_label = ttk.Label(row_frame, text="⚪", font=("Arial", 10))
+            status_label.pack(side=tk.LEFT, padx=(0, 5))
+            
+            # Source name and description
+            name_label = ttk.Label(row_frame, text=icon_name, font=("Arial", 9, "bold"))
+            name_label.pack(side=tk.LEFT, padx=(0, 5))
+            
+            desc_label = ttk.Label(row_frame, text=description, font=("Arial", 8), foreground="gray")
+            desc_label.pack(side=tk.LEFT)
+            
+            # Store references for updates
+            source_key = icon_name.split()[1] if len(icon_name.split()) > 1 else icon_name
+            self.data_source_status[source_key] = {
+                'status': status_label,
+                'name': name_label,
+                'description': desc_label,
+                'color': color,
+                'used': False
+            }
+        
         # Universe configuration
         config_frame = ttk.LabelFrame(etf_selection_frame, text="Universe Configuration", padding=5)
         config_frame.pack(fill=tk.X, pady=10)
@@ -381,6 +494,18 @@ class PortfolioGUI:
         
         self.universe_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         universe_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Data source legend
+        legend_frame = ttk.LabelFrame(universe_frame, text="📊 Data Source Legend", padding=5)
+        legend_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        legend_text = (
+            "�️ Web Scraper (Primary)  �🔗 Finnhub API (Premium)  📊 yfinance (Free)  "
+            "⚠️ Hard-coded (Synthetic)  💾 Cached\n"
+            "⚠️ Symbol = Contains synthetic/manual data that may not reflect current allocations"
+        )
+        ttk.Label(legend_frame, text=legend_text, font=("Arial", 8), 
+                 foreground="gray", wraplength=400).pack()
         
         # Universe summary and portfolio creation
         summary_frame = ttk.Frame(universe_frame)
@@ -439,6 +564,23 @@ class PortfolioGUI:
         # Right side - Portfolio details
         details_frame = ttk.LabelFrame(content_frame, text="Portfolio Details", padding=10)
         details_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        
+        # Data Quality Warning Panel
+        self.data_quality_frame = ttk.LabelFrame(details_frame, text="⚠️ Data Quality Notice", padding=5)
+        self.data_quality_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        self.data_quality_label = ttk.Label(self.data_quality_frame, 
+                                          text="Portfolio uses live data sources", 
+                                          font=("Arial", 9), foreground="green")
+        self.data_quality_label.pack(anchor=tk.W)
+        
+        self.synthetic_warning_label = ttk.Label(self.data_quality_frame, 
+                                               text="", font=("Arial", 8), 
+                                               foreground="red", wraplength=300)
+        self.synthetic_warning_label.pack(anchor=tk.W, pady=(2, 0))
+        
+        # Initially hide the data quality frame
+        self.data_quality_frame.pack_forget()
         
         # Performance metrics
         metrics_frame = ttk.LabelFrame(details_frame, text="Performance Metrics", padding=5)
@@ -533,21 +675,10 @@ class PortfolioGUI:
         edit_frame = ttk.LabelFrame(main_frame, text="Edit Allocations", padding=5)
         edit_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
-        # Create scrollable frame for allocations
-        alloc_canvas = tk.Canvas(edit_frame, height=400)
-        alloc_scrollbar = ttk.Scrollbar(edit_frame, orient=tk.VERTICAL, command=alloc_canvas.yview)
-        self.alloc_scrollable_frame = ttk.Frame(alloc_canvas)
-        
-        self.alloc_scrollable_frame.bind(
-            "<Configure>",
-            lambda e: alloc_canvas.configure(scrollregion=alloc_canvas.bbox("all"))
-        )
-        
-        alloc_canvas.create_window((0, 0), window=self.alloc_scrollable_frame, anchor="nw")
-        alloc_canvas.configure(yscrollcommand=alloc_scrollbar.set)
-        
-        alloc_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        alloc_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        # Create improved scrollable frame for allocations
+        scrollable_alloc = ScrollableFrame(edit_frame)
+        scrollable_alloc.pack(fill=tk.BOTH, expand=True)
+        self.alloc_scrollable_frame = scrollable_alloc.scrollable_frame
         
         # Right side - Allocation summary and chart
         summary_frame = ttk.LabelFrame(main_frame, text="Allocation Summary", padding=5)
@@ -658,8 +789,15 @@ class PortfolioGUI:
     
     def create_metrics_tab(self):
         """Create performance metrics and tracking tab."""
-        metrics_frame = ttk.Frame(self.notebook)
-        self.notebook.add(metrics_frame, text="📈 Metrics")
+        metrics_tab = ttk.Frame(self.notebook)
+        self.notebook.add(metrics_tab, text="📈 Metrics")
+        
+        # Create scrollable frame for metrics content
+        scrollable_metrics = ScrollableFrame(metrics_tab)
+        scrollable_metrics.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Use the scrollable frame's content area
+        metrics_frame = scrollable_metrics.scrollable_frame
         
         # Time period selector
         period_frame = ttk.LabelFrame(metrics_frame, text="Analysis Period", padding=10)
@@ -712,8 +850,15 @@ class PortfolioGUI:
     
     def create_rebalancing_tab(self):
         """Create portfolio rebalancing tab."""
-        rebal_frame = ttk.Frame(self.notebook)
-        self.notebook.add(rebal_frame, text="⚖️ Rebalancing")
+        rebal_tab = ttk.Frame(self.notebook)
+        self.notebook.add(rebal_tab, text="⚖️ Rebalancing")
+        
+        # Create scrollable frame for rebalancing content
+        scrollable_rebal = ScrollableFrame(rebal_tab)
+        scrollable_rebal.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Use the scrollable frame's content area
+        rebal_frame = scrollable_rebal.scrollable_frame
         
         # Rebalancing settings
         settings_frame = ttk.LabelFrame(rebal_frame, text="Rebalancing Configuration", padding=10)
@@ -790,8 +935,15 @@ class PortfolioGUI:
     
     def create_settings_tab(self):
         """Create application settings tab."""
-        settings_frame = ttk.Frame(self.notebook)
-        self.notebook.add(settings_frame, text="⚙️ Settings")
+        settings_tab = ttk.Frame(self.notebook)
+        self.notebook.add(settings_tab, text="⚙️ Settings")
+        
+        # Create scrollable frame for settings content
+        scrollable_settings = ScrollableFrame(settings_tab)
+        scrollable_settings.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Use the scrollable frame's content area
+        settings_frame = scrollable_settings.scrollable_frame
         
         # General settings
         general_frame = ttk.LabelFrame(settings_frame, text="General Settings", padding=10)
@@ -895,6 +1047,162 @@ class PortfolioGUI:
             self.progress_bar.stop()
         self.root.update_idletasks()
     
+    def get_data_source_indicator(self, data_source: str) -> str:
+        """Get visual indicator for data source type."""
+        indicators = {
+
+            'Web Scraper': '🕷️',     # Real web scraped data  
+            'yfinance': '📊',         # Free API data
+            'Hard-coded': '⚠️',       # Synthetic/manual data
+            'Cache': '💾',            # Cached data
+            'Unknown': '❓'           # Unknown source
+        }
+        return indicators.get(data_source, '❓')
+    
+    def get_data_source_color(self, data_source: str) -> str:
+        """Get color for data source type."""
+        colors = {
+
+            'Web Scraper': '#3498db',    # Blue - web scraped
+            'yfinance': '#f39c12',       # Orange - free API
+            'Hard-coded': '#e74c3c',     # Red - synthetic
+            'Cache': '#9b59b6',          # Purple - cached
+            'Unknown': '#95a5a6'         # Gray - unknown
+        }
+        return colors.get(data_source, '#95a5a6')
+    
+    def update_data_source_status(self, sources_used: dict):
+        """Update data source status indicators.
+        
+        Args:
+            sources_used: Dict mapping data source names to usage counts
+        """
+        try:
+            # Reset all indicators
+            for source_key, info in self.data_source_status.items():
+                info['status'].config(text="⚪", foreground="gray")
+                info['name'].config(foreground="gray")
+                info['used'] = False
+            
+            # Update based on what was actually used
+            for source, count in sources_used.items():
+                # Map source names to display keys
+                display_key = None
+                if 'Web Scraper' in source or 'Scraper' in source:
+                    display_key = 'Scraper'
+                elif 'yfinance' in source:
+                    display_key = 'yfinance'
+                elif 'Hard-coded' in source:
+                    display_key = 'Hard-coded'
+                elif 'Cache' in source:
+                    # Handle cached data - extract original source
+                    if 'Hard-coded' in source:
+                        display_key = 'Hard-coded'
+                    elif 'Web Scraper' in source:
+                        display_key = 'Scraper'
+                    elif 'yfinance' in source:
+                        display_key = 'yfinance'
+
+                
+                if display_key and display_key in self.data_source_status:
+                    info = self.data_source_status[display_key]
+                    info['status'].config(text="🟢" if count > 0 else "⚪", 
+                                        foreground=info['color'] if count > 0 else "gray")
+                    info['name'].config(foreground=info['color'] if count > 0 else "gray")
+                    info['used'] = count > 0
+            
+            # Update status bar with summary
+            active_sources = [key for key, info in self.data_source_status.items() if info['used']]
+            if active_sources:
+                status_msg = f"Data sources active: {', '.join(active_sources)}"
+                # Highlight if using synthetic data
+                if 'Hard-coded' in active_sources:
+                    status_msg += " ⚠️ (Synthetic data in use)"
+                self.update_status(status_msg, False)
+            
+        except Exception as e:
+            print(f"Error updating data source status: {e}")
+    
+    def update_portfolio_data_quality_warning(self, portfolio_symbols: List[str]):
+        """Update data quality warning based on portfolio data sources.
+        
+        Args:
+            portfolio_symbols: List of stock symbols in the portfolio
+        """
+        try:
+            if not hasattr(self, 'data_quality_frame'):
+                return
+            
+            # Check which ETFs were used to build the universe and their data sources
+            sources_used = set()
+            synthetic_etfs = []
+            
+            # Get ETF info for current selected ETFs
+            if hasattr(self, 'selected_etfs') and self.selected_etfs.get():
+                etf_list = [etf.strip() for etf in self.selected_etfs.get().split(',')]
+                for etf in etf_list:
+                    etf_info = self.etf_manager.get_etf_holdings(etf)
+                    if etf_info:
+                        source = getattr(etf_info, 'data_source', 'Unknown')
+                        sources_used.add(source)
+                        if 'Hard-coded' in source:
+                            synthetic_etfs.append(etf)
+            
+            # Update warning based on data sources
+            has_synthetic = any('Hard-coded' in source for source in sources_used)
+            has_live_data = any(source in ['Web Scraper', 'yfinance'] 
+                              for source in sources_used)
+            
+            if has_synthetic:
+                # Show warning for synthetic data
+                self.data_quality_frame.pack(fill=tk.X, pady=(0, 5))
+                
+                if has_live_data:
+                    # Mixed data sources
+                    self.data_quality_label.config(
+                        text="⚠️ Mixed data sources: Live + Synthetic", 
+                        foreground="orange"
+                    )
+                    warning_text = (f"Portfolio includes synthetic holdings data from: {', '.join(synthetic_etfs)}. "
+                                  "These ETFs use manually curated holdings data and may not reflect current allocations. "
+                                  "Live data sources are also active for other ETFs.")
+                else:
+                    # All synthetic data
+                    self.data_quality_label.config(
+                        text="⚠️ Portfolio uses synthetic/manual data", 
+                        foreground="red"
+                    )
+                    warning_text = (f"Portfolio is based on manually curated holdings data from: {', '.join(synthetic_etfs)}. "
+                                  "This data may not reflect current ETF allocations. Consider using ETFs with live data support "
+                                  "or enable web scraping for more accurate holdings.")
+                
+                self.synthetic_warning_label.config(text=warning_text)
+                
+            else:
+                # All live data - show positive message
+                if has_live_data:
+                    source_names = []
+                    for source in sources_used:
+                        if 'Web Scraper' in source:
+                            source_names.append("Web Scraper")
+                        elif 'yfinance' in source:
+                            source_names.append("yfinance")
+                        elif 'Cache' in source:
+                            source_names.append("Cached data")
+                    
+                    self.data_quality_frame.pack(fill=tk.X, pady=(0, 5))
+                    self.data_quality_label.config(
+                        text=f"✅ Portfolio uses live data: {', '.join(set(source_names))}", 
+                        foreground="green"
+                    )
+                    self.synthetic_warning_label.config(text="Holdings data is current and accurate.")
+                else:
+                    # Hide warning if no data or unknown sources
+                    self.data_quality_frame.pack_forget()
+                    
+        except Exception as e:
+            print(f"Error updating portfolio data quality warning: {e}")
+    
     def load_config(self) -> Dict:
         """Load configuration from file."""
         try:
@@ -921,7 +1229,9 @@ class PortfolioGUI:
             'auto_export': True,
             'cpu_cores': 4,
             'enable_cache': True,
-            'auto_remove_insufficient_data': True  # New option
+            'auto_remove_insufficient_data': True,
+            'enable_web_scraping': True,  # Enable web scraping with user XPath selectors
+            'web_scraper_headless': True  # Run web scraper in headless mode for performance
         }
     
     def save_config(self):
@@ -1022,6 +1332,16 @@ class PortfolioGUI:
             try:
                 etf_list = [etf.strip() for etf in self.selected_etfs.get().split(',')]
                 
+                # Track data sources used
+                sources_used = {}
+                
+                # Get holdings for each ETF and track sources
+                for etf in etf_list:
+                    etf_info = self.etf_manager.get_etf_holdings(etf)
+                    if etf_info:
+                        source = getattr(etf_info, 'data_source', 'Unknown')
+                        sources_used[source] = sources_used.get(source, 0) + 1
+                
                 # Build universe
                 universe_stocks = self.etf_manager.build_universe_from_etfs(
                     etf_list,
@@ -1035,6 +1355,7 @@ class PortfolioGUI:
                     
                     # Update GUI in main thread
                     self.root.after(0, self.update_universe_display, universe_stocks)
+                    self.root.after(0, lambda: self.update_data_source_status(sources_used))
                 else:
                     self.root.after(0, lambda: messagebox.showerror("Error", "Could not build universe from selected ETFs"))
                     self.root.after(0, self.universe_build_failed)
@@ -1064,25 +1385,39 @@ class PortfolioGUI:
             etf_list = [etf.strip() for etf in self.selected_etfs.get().split(',')]
             
             for stock in universe_stocks:
-                # Find which ETFs contain this stock
+                # Find which ETFs contain this stock and track data sources
                 sources = []
                 total_weight = 0
                 count = 0
+                data_sources = set()  # Track unique data sources
                 
                 for etf in etf_list:
                     etf_info = self.etf_manager.get_etf_holdings(etf)
                     if etf_info and etf_info.holdings:
+                        # Track data source for this ETF
+                        data_source = getattr(etf_info, 'data_source', 'Unknown')
+                        data_sources.add(data_source)
+                        
                         for holding in etf_info.holdings:
                             if holding.symbol == stock:
-                                sources.append(f"{etf}({holding.weight:.1f}%)")
+                                # Add source indicator based on data type
+                                source_indicator = self.get_data_source_indicator(data_source)
+                                sources.append(f"{etf}({holding.weight:.1f}%){source_indicator}")
                                 total_weight += holding.weight
                                 count += 1
                                 break
                 
                 avg_weight = total_weight / count if count > 0 else 0
                 
-                self.universe_tree.insert("", tk.END, text=stock,
+                # Add color coding based on data sources
+                has_synthetic = any('⚠️' in source for source in sources)
+                
+                item = self.universe_tree.insert("", tk.END, text=stock,
                                         values=(", ".join(sources), f"{avg_weight:.1f}%", str(count)))
+                
+                # Color code rows with synthetic data
+                if has_synthetic:
+                    self.universe_tree.set(item, "#0", f"⚠️ {stock}")  # Add warning icon
             
             # Update summary
             self.universe_progress.stop()
@@ -1199,6 +1534,9 @@ class PortfolioGUI:
                 value = portfolio_value * weight
                 self.holdings_tree.insert("", tk.END, text=symbol,
                                         values=(f"{weight:.1%}", f"${value:,.0f}"))
+        
+        # Update data quality warning
+        self.update_portfolio_data_quality_warning(portfolio.symbols)
         
         # Update portfolio chart
         self.update_portfolio_chart(portfolio)
@@ -1920,9 +2258,16 @@ Built with Python, Tkinter, and financial analysis libraries.
         ttk.Label(info_frame, text=f"📊 Universe Size: {universe_size} stocks").pack(anchor=tk.W)
         ttk.Label(info_frame, text=f"📈 Source ETFs: {self.selected_etfs.get()}").pack(anchor=tk.W)
         
+        # Create scrollable frame for wizard content
+        scroll_frame = ScrollableFrame(wizard)
+        scroll_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # Move all content to scrollable frame
+        wizard_content = scroll_frame.scrollable_frame
+        
         # Portfolio options
-        options_frame = ttk.LabelFrame(wizard, text="Portfolio Types to Create", padding=10)
-        options_frame.pack(fill=tk.X, padx=20, pady=10)
+        options_frame = ttk.LabelFrame(wizard_content, text="Portfolio Types to Create", padding=10)
+        options_frame.pack(fill=tk.X, pady=10)
         
         # Instructions
         instructions = ttk.Label(options_frame, 
@@ -1968,8 +2313,8 @@ Built with Python, Tkinter, and financial analysis libraries.
             ttk.Checkbutton(options_frame, text=label, variable=var).pack(anchor=tk.W, pady=2, padx=20)
         
         # Optimization settings
-        settings_frame = ttk.LabelFrame(wizard, text="Optimization Settings", padding=10)
-        settings_frame.pack(fill=tk.X, padx=20, pady=10)
+        settings_frame = ttk.LabelFrame(wizard_content, text="Optimization Settings", padding=10)
+        settings_frame.pack(fill=tk.X, pady=10)
         
         # Risk-free rate
         risk_frame = ttk.Frame(settings_frame)
@@ -1991,8 +2336,8 @@ Built with Python, Tkinter, and financial analysis libraries.
         method_combo.pack(side=tk.RIGHT)
         
         # Progress section
-        progress_frame = ttk.LabelFrame(wizard, text="Progress", padding=10)
-        progress_frame.pack(fill=tk.X, padx=20, pady=10)
+        progress_frame = ttk.LabelFrame(wizard_content, text="Progress", padding=10)
+        progress_frame.pack(fill=tk.X, pady=10)
         
         self.wizard_progress = ttk.Progressbar(progress_frame, mode='indeterminate')
         self.wizard_progress.pack(fill=tk.X, pady=5)

@@ -15,9 +15,29 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .market_data import MarketDataFetcher
 from .etf_holdings import ETFHoldingsManager
 from .tv_data_fetcher import TradingViewDataFetcher
-from ..portfolio.optimizer import PortfolioOptimizer, PortfolioMetrics
-from ..analysis.performance import PerformanceAnalyzer
-from ..utils.helpers import format_percentage, format_currency
+
+# Conditional imports to avoid issues with relative imports beyond top-level package
+try:
+    from ..portfolio.optimizer import PortfolioOptimizer, PortfolioMetrics
+    from ..analysis.performance import PerformanceAnalyzer
+    from ..utils.helpers import format_percentage, format_currency
+    PORTFOLIO_IMPORTS_AVAILABLE = True
+except ImportError:
+    PORTFOLIO_IMPORTS_AVAILABLE = False
+    print("WARNING: Portfolio/analysis modules not available - some features disabled")
+    
+    # Fallback classes and functions
+    class PortfolioMetrics:
+        """Fallback PortfolioMetrics class."""
+        pass
+    
+    def format_percentage(value):
+        """Fallback percentage formatter."""
+        return f"{value * 100:.2f}%"
+    
+    def format_currency(value):
+        """Fallback currency formatter."""
+        return f"${value:,.2f}"
 
 
 @dataclass
@@ -56,8 +76,15 @@ class PortfolioUniverseManager:
         self.risk_free_rate = risk_free_rate
         self.fetcher = MarketDataFetcher()
         self.etf_manager = ETFHoldingsManager()
-        self.optimizer = PortfolioOptimizer(risk_free_rate)
-        self.analyzer = PerformanceAnalyzer()
+        
+        # Conditional initialization of portfolio-related components
+        if PORTFOLIO_IMPORTS_AVAILABLE:
+            self.optimizer = PortfolioOptimizer(risk_free_rate)
+            self.analyzer = PerformanceAnalyzer()
+        else:
+            self.optimizer = None
+            self.analyzer = None
+            
         self.universe: List[UniverseStock] = []
         self.universe_data: Dict = {}
         self.strategies: List[PortfolioStrategy] = []

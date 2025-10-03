@@ -20,12 +20,12 @@ try:
     CACHING_AVAILABLE = True
 except ImportError:
     CACHING_AVAILABLE = False
-    print("⚠️ Cache manager not available - caching disabled")
+    print("WARNING: Cache manager not available - caching disabled")
 
 try:
     from tvDatafeed import TvDatafeed, Interval
     TVDATAFEED_AVAILABLE = True
-    print("✅ TradingView tvDatafeed successfully imported")
+    print("SUCCESS: TradingView tvDatafeed successfully imported")
 except ImportError as e:
     TVDATAFEED_AVAILABLE = False
     print(f"Warning: tvDatafeed not available ({e}), falling back to synthetic data")
@@ -45,14 +45,14 @@ class TradingViewDataFetcher:
         if TVDATAFEED_AVAILABLE:
             try:
                 self.tv = TvDatafeed()
-                print("✅ TradingView data fetcher initialized")
+                print("SUCCESS: TradingView data fetcher initialized")
             except Exception as e:
-                print(f"⚠️  TradingView initialization failed: {e}")
+                print(f"WARNING:  TradingView initialization failed: {e}")
                 self.tv = None
         
         if self.cache_enabled:
             self.cache = get_cache_manager()
-            print("💾 TradingView caching enabled")
+            print("CACHE: TradingView caching enabled")
         else:
             self.cache = None
         
@@ -105,7 +105,7 @@ class TradingViewDataFetcher:
                 return cached_data
         
         if not self.tv:
-            print(f"⚠️  TradingView not available for {symbol}, using synthetic data")
+            print(f"WARNING:  TradingView not available for {symbol}, using synthetic data")
             synthetic_data = self._generate_synthetic_data(symbol, days)
             
             # Cache synthetic data
@@ -144,7 +144,7 @@ class TradingViewDataFetcher:
                 )
                 
                 if data is not None and len(data) > 0:
-                    print(f"✅ {symbol}: {len(data)} days from {exchange}")
+                    print(f"SUCCESS: {symbol}: {len(data)} days from {exchange}")
                     
                     # Cache successful data
                     if self.cache_enabled:
@@ -155,20 +155,20 @@ class TradingViewDataFetcher:
                     
             except Exception as e:
                 if i < len(exchanges_to_try) - 1:
-                    print(f"⚠️  {symbol} failed on {exchange}, trying next exchange...")
+                    print(f"WARNING:  {symbol} failed on {exchange}, trying next exchange...")
                     continue
                 else:
-                    print(f"❌ {symbol}: Failed on all exchanges")
+                    print(f"ERROR: {symbol}: Failed on all exchanges")
         
         # If all exchanges fail, check if we should generate synthetic data
         if not allow_synthetic:
-            print(f"❌ {symbol}: Failed on all exchanges, synthetic data disabled")
+            print(f"ERROR: {symbol}: Failed on all exchanges, synthetic data disabled")
             return None
             
         # For clearly invalid symbols, don't generate synthetic data  
         if symbol.upper() in ['INVALID', 'BADSTOCK', 'FAKE_SYM', 'ZZZZ', 'XXXX', 'QQQQ'] or \
            any(char.isdigit() for char in symbol) or len(symbol) > 5 or len(symbol) < 2:
-            print(f"❌ {symbol}: Invalid symbol, not generating synthetic data")
+            print(f"ERROR: {symbol}: Invalid symbol, not generating synthetic data")
             return None
         
         # For potentially valid symbols that just had connection issues, use synthetic data
@@ -257,9 +257,9 @@ class TradingViewDataFetcher:
         
         # Report results
         if failed_symbols:
-            print(f"  ⚠️ Data fetch summary: {len(successful_symbols)}/{len(symbols)} successful")
-            print(f"     ✅ Success: {successful_symbols}")
-            print(f"     ❌ Failed: {failed_symbols}")
+            print(f"  WARNING: Data fetch summary: {len(successful_symbols)}/{len(symbols)} successful")
+            print(f"     SUCCESS: Success: {successful_symbols}")
+            print(f"     ERROR: Failed: {failed_symbols}")
         
         if returns_data:
             # Find common date range for all series
@@ -276,7 +276,7 @@ class TradingViewDataFetcher:
                     if len(trimmed) >= 15:  # Still require minimum data
                         aligned_data[symbol] = trimmed
                     else:
-                        print(f"  ⚠️ Dropping {symbol}: insufficient data after alignment ({len(trimmed)} days)")
+                        print(f"  WARNING: Dropping {symbol}: insufficient data after alignment ({len(trimmed)} days)")
                 
                 if aligned_data:
                     returns_df = pd.DataFrame(aligned_data)
@@ -437,15 +437,15 @@ def test_tv_data_fetcher():
     
     print(f"Testing connection...")
     if tv_fetcher.test_connection():
-        print("✅ TradingView connection working")
+        print("SUCCESS: TradingView connection working")
     else:
-        print("⚠️  TradingView connection not available, using synthetic data")
+        print("WARNING:  TradingView connection not available, using synthetic data")
     
     print(f"\nFetching returns data for {test_symbols}...")
     returns_df = get_stock_returns(test_symbols, days=90)
     
     if len(returns_df) > 0:
-        print(f"✅ Success: {len(returns_df)} days, {len(returns_df.columns)} stocks")
+        print(f"SUCCESS: Success: {len(returns_df)} days, {len(returns_df.columns)} stocks")
         print(f"Columns: {list(returns_df.columns)}")
         print(f"Date range: {returns_df.index[0].date()} to {returns_df.index[-1].date()}")
         
@@ -455,7 +455,7 @@ def test_tv_data_fetcher():
             std_ret = returns_df[col].std()
             print(f"{col}: Mean return {mean_ret:.4f}, Std {std_ret:.4f}")
     else:
-        print("❌ No data returned")
+        print("ERROR: No data returned")
     
     return len(returns_df) > 0
 
